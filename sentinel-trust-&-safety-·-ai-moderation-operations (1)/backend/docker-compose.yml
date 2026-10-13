@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  fastapi-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/moderation_db
+      - REDIS_URL=redis://redis:6379/0
+      - TF_SERVING_URL=http://tf-serving:8501/v1/models/roberta_tox:predict
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      - postgres
+      - redis
+      - tf-serving
+      - kafka
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.celery_worker.celery_app worker --loglevel=info --concurrency=16
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/moderation_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - TF_SERVING_URL=http://tf-serving:8501/v1/models/roberta_tox:predict
+    depends_on:
+      - postgres
+      - redis
+      - tf-serving
+
+  tf-serving:
+    image: tensorflow/serving:latest
+    ports:
+      - "8500:8500" # gRPC
+      - "8501:8501" # REST
+    environment:
+      - MODEL_NAME=roberta_tox
+    volumes:
+      - ./models/roberta_tox:/models/roberta_tox
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=moderation_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+volumes:
+  pgdata:
