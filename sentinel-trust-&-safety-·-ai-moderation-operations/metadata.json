@@ -1,6 +1,0 @@
-{
-  "name": "Sentinel Trust & Safety · AI Moderation Operations",
-  "description": "Event-driven content moderation platform with real-time Kafka stream ingestion, multi-head NLP toxicity detection, batch decision queue, appeals workflow, and operations analytics.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
